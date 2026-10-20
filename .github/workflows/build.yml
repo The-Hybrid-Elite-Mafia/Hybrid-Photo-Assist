@@ -1,0 +1,85 @@
+name: Build Hybrid Photo Assist
+
+# Manual only: run from the Actions tab or the API.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fill-model-check:
+    name: Check the erase-and-fill AI model
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download model (same URL the app uses)
+        run: |
+          curl -fL --retry 3 -o lama_dilated.tflite \
+            https://huggingface.co/mlboydaisuke/LaMa-Dilated-LiteRT/resolve/main/lama_dilated.tflite
+          ls -l lama_dilated.tflite
+      - name: Run model on a test picture
+        run: |
+          pip install --quiet numpy ai-edge-litert || pip install --quiet numpy tensorflow
+          python tools/check_fill_model.py lama_dilated.tflite
+
+  build:
+    name: Unit tests and APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Download the tap-to-select model (Google MediaPipe)
+        run: |
+          mkdir -p app/src/main/assets
+          curl -fL --retry 3 -o app/src/main/assets/interactive_segmentation.task \
+            https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task
+          ls -l app/src/main/assets
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.HPA_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/hpa.keystore"
+            echo "HPA_KEYSTORE_PATH=$RUNNER_TEMP/hpa.keystore" >> "$GITHUB_ENV"
+          else
+            echo "No signing key secret; building with the debug key."
+          fi
+      - name: Unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+      - name: Build release APK
+        env:
+          HPA_KEYSTORE_PASSWORD: ${{ secrets.HPA_KEYSTORE_PASSWORD }}
+          HPA_KEY_ALIAS: ${{ secrets.HPA_KEY_ALIAS }}
+          HPA_KEY_PASSWORD: ${{ secrets.HPA_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Verify APK signature and contents
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs "$APK"
+          unzip -l "$APK" | grep -E "interactive_segmentation.task|lib/arm64-v8a/" | head -20
+          V=$(grep versionName version.properties | cut -d= -f2)
+          cp "$APK" "HybridPhotoAssist-$V.apk"
+          ls -l HybridPhotoAssist-*.apk
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HybridPhotoAssist-apk
+          path: HybridPhotoAssist-*.apk

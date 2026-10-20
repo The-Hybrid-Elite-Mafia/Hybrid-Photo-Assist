@@ -1,0 +1,7 @@
+<resources>
+    <color name="hem_lime">#C0FF3E</color>
+    <color name="hem_bg">#0B0D10</color>
+    <color name="hem_panel">#151920</color>
+    <color name="hem_text">#E9EEF3</color>
+    <color name="hem_dim">#8A95A1</color>
+</resources>

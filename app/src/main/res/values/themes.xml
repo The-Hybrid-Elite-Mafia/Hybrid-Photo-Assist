@@ -1,0 +1,15 @@
+<resources>
+    <style name="Theme.HybridPhotoAssist" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/hem_lime</item>
+        <item name="colorPrimaryVariant">@color/hem_lime</item>
+        <item name="colorOnPrimary">@color/hem_bg</item>
+        <item name="colorSecondary">@color/hem_lime</item>
+        <item name="colorOnSecondary">@color/hem_bg</item>
+        <item name="android:colorBackground">@color/hem_bg</item>
+        <item name="android:windowBackground">@color/hem_bg</item>
+        <item name="android:statusBarColor">@color/hem_bg</item>
+        <item name="android:navigationBarColor">@color/hem_bg</item>
+        <item name="android:textColorPrimary">@color/hem_text</item>
+        <item name="android:textColorSecondary">@color/hem_dim</item>
+    </style>
+</resources>
