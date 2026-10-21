@@ -100,7 +100,7 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         findViewById<View>(R.id.toolBackground).setOnClickListener { chooseBackground() }
         findViewById<View>(R.id.btnMoveApply).setOnClickListener { applyMove() }
         findViewById<View>(R.id.btnMoveCancel).setOnClickListener { cancelMove() }
-        actionButtons = listOf(
+        actionButtons = listOf<View>(
             findViewById(R.id.btnOpen), findViewById(R.id.btnUndo), findViewById(R.id.btnRedo),
             findViewById(R.id.btnSave), findViewById(R.id.toolClear), findViewById(R.id.toolErase),
             findViewById(R.id.toolMove), findViewById(R.id.toolBackground)
