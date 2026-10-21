@@ -47,12 +47,18 @@ jobs:
             https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task
           ls -l app/src/main/assets
       - name: Unit tests
-        run: gradle --no-daemon :app:testDebugUnitTest
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain :app:testDebugUnitTest 2>&1 | tee -a ci.log
       - name: Build unsigned release APK
         # The signing key never goes to GitHub. The APK is signed afterwards with Steven's own key.
         env:
           HPA_UNSIGNED: "1"
-        run: gradle --no-daemon :app:assembleRelease
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain :app:assembleRelease 2>&1 | tee -a ci.log
       - name: Package unsigned APK and signing tools
         run: |
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
@@ -66,6 +72,29 @@ jobs:
           "$BT/zipalign" -c -p 4 "out/HybridPhotoAssist-$V-unsigned.apk" && echo "zipalign OK"
           cp "$BT/lib/apksigner.jar" out/
           ls -l out
+      - name: Report errors as annotations
+        if: failure()
+        shell: bash
+        run: |
+          touch ci.log
+          grep -E "^e: |error:|What went wrong|FAILED|Could not |Unresolved|Exception|> " ci.log | head -45 | while IFS= read -r line; do
+            echo "::error::${line:0:900}"
+          done
+      - name: Publish log and output to the ci-out branch
+        if: always()
+        shell: bash
+        run: |
+          touch ci.log
+          mkdir -p /tmp/ciout
+          cp ci.log /tmp/ciout/ci.log
+          [ -d out ] && cp out/* /tmp/ciout/ || true
+          [ -d app/build/reports/tests ] && cp -r app/build/reports/tests /tmp/ciout/test-reports || true
+          cd /tmp/ciout
+          git init -q -b ci-out
+          git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
+          echo "run ${{ github.run_id }} ${{ job.status }}" > RUN.txt
+          git add -A && git commit -q -m "CI run ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-out
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
