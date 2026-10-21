@@ -45,8 +45,12 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
-            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release")
-            else signingConfigs.getByName("debug")
+            // HPA_UNSIGNED=1 (CI): leave unsigned; it is signed afterwards with Steven's key.
+            signingConfig = when {
+                System.getenv("HPA_UNSIGNED") == "1" -> null
+                hasReleaseKey -> signingConfigs.getByName("release")
+                else -> signingConfigs.getByName("debug")
+            }
         }
     }
 

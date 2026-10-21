@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   fill-model-check:
@@ -46,33 +46,26 @@ jobs:
           curl -fL --retry 3 -o app/src/main/assets/interactive_segmentation.task \
             https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task
           ls -l app/src/main/assets
-      - name: Restore signing key
-        env:
-          KEYSTORE_B64: ${{ secrets.HPA_KEYSTORE_B64 }}
-        run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/hpa.keystore"
-            echo "HPA_KEYSTORE_PATH=$RUNNER_TEMP/hpa.keystore" >> "$GITHUB_ENV"
-          else
-            echo "No signing key secret; building with the debug key."
-          fi
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build release APK
+      - name: Build unsigned release APK
+        # The signing key never goes to GitHub. The APK is signed afterwards with Steven's own key.
         env:
-          HPA_KEYSTORE_PASSWORD: ${{ secrets.HPA_KEYSTORE_PASSWORD }}
-          HPA_KEY_ALIAS: ${{ secrets.HPA_KEY_ALIAS }}
-          HPA_KEY_PASSWORD: ${{ secrets.HPA_KEY_PASSWORD }}
+          HPA_UNSIGNED: "1"
         run: gradle --no-daemon :app:assembleRelease
-      - name: Verify APK signature and contents
+      - name: Package unsigned APK and signing tools
         run: |
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          echo "built: $APK"
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BT/apksigner" verify --print-certs "$APK"
+          echo "build-tools: $BT"
           unzip -l "$APK" | grep -E "interactive_segmentation.task|lib/arm64-v8a/" | head -20
           V=$(grep versionName version.properties | cut -d= -f2)
-          cp "$APK" "HybridPhotoAssist-$V.apk"
-          ls -l HybridPhotoAssist-*.apk
+          mkdir -p out
+          "$BT/zipalign" -f -p 4 "$APK" "out/HybridPhotoAssist-$V-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "out/HybridPhotoAssist-$V-unsigned.apk" && echo "zipalign OK"
+          cp "$BT/lib/apksigner.jar" out/
+          ls -l out
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,5 +74,14 @@ jobs:
           path: app/build/reports/tests/
       - uses: actions/upload-artifact@v4
         with:
-          name: HybridPhotoAssist-apk
-          path: HybridPhotoAssist-*.apk
+          name: HybridPhotoAssist-unsigned
+          path: out/
+      - name: Attach unsigned APK to a pre-release (backup download path)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(grep versionName version.properties | cut -d= -f2)
+          gh release create "build-$V-${{ github.run_number }}" out/* \
+            --repo "${{ github.repository }}" --prerelease \
+            --title "Build $V #${{ github.run_number }} (unsigned)" \
+            --notes "Unsigned build from run ${{ github.run_id }}. Install the signed APK Claude sends, not this one."
