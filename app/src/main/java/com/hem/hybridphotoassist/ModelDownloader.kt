@@ -108,6 +108,6 @@ class ModelDownloader(private val context: Context) {
         const val URL_STRING = "https://huggingface.co/mlboydaisuke/LaMa-Dilated-LiteRT/resolve/main/lama_dilated.tflite"
         const val MIN_BYTES = 150L * 1024 * 1024
         /** SHA-256 of the file at [URL_STRING]; CI downloads the same file and checks it matches. */
-        const val SHA256 = "SHA256_FROM_CI"
+        const val SHA256 = "a2ac8ed174be1233e4e518c8ef57fb943ea97162696dcd2d428c056280efe583"
     }
 }
