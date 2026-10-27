@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hem.hybridphotoassist.LookMatchTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-27T23:53:39.935Z" hostname="runnervmtai0g" time="0.109">
+  <properties/>
+  <testcase name="bigImageUsesSampledStats" classname="com.hem.hybridphotoassist.LookMatchTest" time="0.105"/>
+  <testcase name="zeroStrengthChangesNothing" classname="com.hem.hybridphotoassist.LookMatchTest" time="0.001"/>
+  <testcase name="fullStrengthMovesBrightnessToReference" classname="com.hem.hybridphotoassist.LookMatchTest" time="0.002"/>
+  <testcase name="onlyInsideMask" classname="com.hem.hybridphotoassist.LookMatchTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

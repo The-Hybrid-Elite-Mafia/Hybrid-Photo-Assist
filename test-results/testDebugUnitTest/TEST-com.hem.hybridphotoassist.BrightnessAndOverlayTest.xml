@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hem.hybridphotoassist.BrightnessAndOverlayTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-27T23:53:39.788Z" hostname="runnervmtai0g" time="0.016">
+  <properties/>
+  <testcase name="darkenWholeImage" classname="com.hem.hybridphotoassist.BrightnessAndOverlayTest" time="0.004"/>
+  <testcase name="brightnessOnlyInsideMask" classname="com.hem.hybridphotoassist.BrightnessAndOverlayTest" time="0.001"/>
+  <testcase name="overlayPlacesAndClips" classname="com.hem.hybridphotoassist.BrightnessAndOverlayTest" time="0.01"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hem.hybridphotoassist.InpainterTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-27T23:53:39.863Z" hostname="runnervmtai0g" time="0.07">
+  <properties/>
+  <testcase name="cropStaysInsideAndCoversObject" classname="com.hem.hybridphotoassist.InpainterTest" time="0.001"/>
+  <testcase name="emptySelectionDoesNothing" classname="com.hem.hybridphotoassist.InpainterTest" time="0.001"/>
+  <testcase name="fillsInsideAndLeavesFarPixelsAlone" classname="com.hem.hybridphotoassist.InpainterTest" time="0.067"/>
+  <testcase name="normalizesDifferentOutputScales" classname="com.hem.hybridphotoassist.InpainterTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

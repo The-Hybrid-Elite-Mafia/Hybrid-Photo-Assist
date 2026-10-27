@@ -1,0 +1,215 @@
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/build.gradle.kts:28: Warning: Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the android.os.Build.VERSION_CODES javadoc for details. [OldTargetApi]
+        targetSdk = 35
+        ~~~~~~~~~~~~~~
+
+   Explanation for issues of type "OldTargetApi":
+   When your application runs on a version of Android that is more recent than
+   your targetSdkVersion specifies that it has been tested with, various
+   compatibility modes kick in. This ensures that your application continues
+   to work, but it may look out of place. For example, if the targetSdkVersion
+   is less than 14, your app may get an option button in the UI.
+
+   To fix this issue, set the targetSdkVersion to the highest available value.
+   Then test your app to make sure everything works correctly. You may want to
+   consult the compatibility notes to see what changes apply to each version
+   you are adding support for:
+   https://developer.android.com/reference/android/os/Build.VERSION_CODES.html
+   as well as follow this guide:
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.
+   html
+
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.html
+
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/build.gradle.kts:81: Warning: A newer version of androidx.core:core-ktx than 1.13.1 is available: 1.19.1 [GradleDependency]
+    implementation("androidx.core:core-ktx:1.13.1")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/build.gradle.kts:82: Warning: A newer version of androidx.appcompat:appcompat than 1.7.0 is available: 1.8.0 [GradleDependency]
+    implementation("androidx.appcompat:appcompat:1.7.0")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/build.gradle.kts:83: Warning: A newer version of androidx.activity:activity-ktx than 1.9.3 is available: 1.13.0 [GradleDependency]
+    implementation("androidx.activity:activity-ktx:1.9.3")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/build.gradle.kts:84: Warning: A newer version of com.google.android.material:material than 1.12.0 is available: 1.14.0 [GradleDependency]
+    implementation("com.google.android.material:material:1.12.0")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/build.gradle.kts:86: Warning: A newer version of com.google.mediapipe:tasks-vision than 1.0.0 is available: 1.1.1 [GradleDependency]
+    implementation("com.google.mediapipe:tasks-vision:1.0.0")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/build.gradle.kts:88: Warning: A newer version of com.google.ai.edge.litert:litert than 1.4.2 is available: 2.3.2 [GradleDependency]
+    implementation("com.google.ai.edge.litert:litert:1.4.2")
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "GradleDependency":
+   This detector looks for usages of libraries where the version you are using
+   is not the current stable release. Using older versions is fine, and there
+   are cases where you deliberately want to stick with an older version.
+   However, you may simply not be aware that a more recent version is
+   available, and that is what this lint check helps find.
+
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/AndroidManifest.xml:21: Warning: Should not restrict activity to fixed orientation. This may not be suitable for different form factors, causing the app to be letterboxed. [DiscouragedApi]
+            android:screenOrientation="unspecified"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "DiscouragedApi":
+   Discouraged APIs are allowed and are not deprecated, but they may be unfit
+   for common use (e.g. due to slow performance or subtle behavior).
+
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/AndroidManifest.xml:11: Warning: The attribute android:allowBackup is deprecated from Android 12 and higher and may be removed in future versions. Consider adding the attribute android:dataExtractionRules specifying an @xml resource which configures cloud backups and device transfers on Android 12 and higher. [DataExtractionRules]
+        android:allowBackup="false"
+                             ~~~~~
+
+   Explanation for issues of type "DataExtractionRules":
+   Before Android 12, the attributes android:allowBackup and
+   android:fullBackupContent were used to configure all forms of backup,
+   including cloud backups, device-to-device transfers and adb backup.
+
+   In Android 12 and higher, these attributes have been deprecated and will
+   only apply to cloud backups. You should instead use the attribute
+   android:dataExtractionRules, specifying an @xml resource that configures
+   which files to back up, for cloud backups and for device-to-device
+   transfers, separately. If your minSdkVersion supports older versions,
+   you'll still want to specify an android:fullBackupContent resource if the
+   default behavior is not right for your app.
+
+   https://developer.android.com/about/versions/12/backup-restore#xml-changes
+   https://goo.gle/DataExtractionRules
+
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:6: Warning: Possible overdraw: Root element paints background @color/hem_bg with a theme that also paints a background (inferred theme is @style/Theme.HybridPhotoAssist) [Overdraw]
+    android:background="@color/hem_bg"
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "Overdraw":
+   If you set a background drawable on a root view, then you should use a
+   custom theme where the theme background is null. Otherwise, the theme
+   background will be painted first, only to have your custom background
+   completely cover it; this is called "overdraw".
+
+   NOTE: This detector relies on figuring out which layouts are associated
+   with which activities based on scanning the Java code, and it's currently
+   doing that using an inexact pattern matching algorithm. Therefore, it can
+   incorrectly conclude which activity the layout is associated with and then
+   wrongly complain that a background-theme is hidden.
+
+   If you want your custom background on multiple pages, then you should
+   consider making a custom theme with your custom background and just using
+   that theme instead of a root element background.
+
+   Of course it's possible that your custom drawable is translucent and you
+   want it to be mixed with the background. However, you will get better
+   performance if you pre-mix the background with your drawable and use that
+   resulting image or color as a custom theme background instead.
+
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/java/com/hem/hybridphotoassist/MainActivity.kt:894: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+        box.addView(TextView(this).apply { text = "When I say:" })
+                                                   ~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/java/com/hem/hybridphotoassist/MainActivity.kt:896: Warning: String literal in setText can not be translated. Use Android resources instead. [SetTextI18n]
+        box.addView(TextView(this).apply { text = "It does:"; setPadding(0, pad / 2, 0, 0) })
+                                                   ~~~~~~~~
+
+   Explanation for issues of type "SetTextI18n":
+   When calling TextView#setText
+   * Never call Number#toString() to format numbers; it will not handle
+   fraction separators and locale-specific digits properly. Consider using
+   String#format with proper format specifications (%d or %f) instead.
+   * Do not pass a string literal (e.g. "Hello") to display text. Hardcoded
+   text can not be properly translated to other languages. Consider using
+   Android resource strings instead.
+   * Do not build messages by concatenating text chunks. Such messages can not
+   be properly translated.
+
+   https://developer.android.com/guide/topics/resources/localization.html
+
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:33: Warning: Hardcoded string "Open", should use @string resource [HardcodedText]
+            android:text="Open" />
+            ~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:41: Warning: Hardcoded string "Undo", should use @string resource [HardcodedText]
+            android:text="Undo" />
+            ~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:49: Warning: Hardcoded string "Redo", should use @string resource [HardcodedText]
+            android:text="Redo" />
+            ~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:57: Warning: Hardcoded string "Save", should use @string resource [HardcodedText]
+            android:text="Save" />
+            ~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:77: Warning: Hardcoded string "Tap OPEN to pick a photo", should use @string resource [HardcodedText]
+            android:text="Tap OPEN to pick a photo"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:114: Warning: Hardcoded string "Hold to see the original photo", should use @string resource [HardcodedText]
+            android:contentDescription="Hold to see the original photo"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:116: Warning: Hardcoded string "Hold: Before", should use @string resource [HardcodedText]
+            android:text="Hold: Before" />
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:132: Warning: Hardcoded string "Brush size", should use @string resource [HardcodedText]
+            android:text="Brush size"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:158: Warning: Hardcoded string "Cancel", should use @string resource [HardcodedText]
+            android:text="Cancel" />
+            ~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:164: Warning: Hardcoded string "Place it here", should use @string resource [HardcodedText]
+            android:text="Place it here" />
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:181: Warning: Hardcoded string "Back to my photo", should use @string resource [HardcodedText]
+            android:text="Back to my photo" />
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:187: Warning: Hardcoded string "Copy into my photo", should use @string resource [HardcodedText]
+            android:text="Copy into my photo" />
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:207: Warning: Hardcoded string "Describe what you want to change…", should use @string resource [HardcodedText]
+            android:hint="Describe what you want to change…"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:224: Warning: Hardcoded string "Edit my phrases", should use @string resource [HardcodedText]
+            android:contentDescription="Edit my phrases"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:226: Warning: Hardcoded string "Edit", should use @string resource [HardcodedText]
+            android:text="Edit" />
+            ~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:233: Warning: Hardcoded string "What can I type?", should use @string resource [HardcodedText]
+            android:contentDescription="What can I type?"
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:235: Warning: Hardcoded string "?", should use @string resource [HardcodedText]
+            android:text="\?" />
+            ~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:242: Warning: Hardcoded string "Apply", should use @string resource [HardcodedText]
+            android:text="Apply" />
+            ~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:264: Warning: Hardcoded string "Select", should use @string resource [HardcodedText]
+                android:text="Select" />
+                ~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:272: Warning: Hardcoded string "Brush +", should use @string resource [HardcodedText]
+                android:text="Brush +" />
+                ~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:280: Warning: Hardcoded string "Brush −", should use @string resource [HardcodedText]
+                android:text="Brush −" />
+                ~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:288: Warning: Hardcoded string "Clear", should use @string resource [HardcodedText]
+                android:text="Clear" />
+                ~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:295: Warning: Hardcoded string "Erase", should use @string resource [HardcodedText]
+                android:text="Erase" />
+                ~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:302: Warning: Hardcoded string "Move", should use @string resource [HardcodedText]
+                android:text="Move" />
+                ~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:309: Warning: Hardcoded string "Background", should use @string resource [HardcodedText]
+                android:text="Background" />
+                ~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/runner/work/Hybrid-Photo-Assist/Hybrid-Photo-Assist/app/src/main/res/layout/activity_main.xml:315: Warning: Hardcoded string "Reference", should use @string resource [HardcodedText]
+                android:text="Reference" />
+                ~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "HardcodedText":
+   Hardcoding text attributes directly in layout files is bad for several
+   reasons:
+
+   * When creating configuration variations (for example for landscape or
+   portrait) you have to repeat the actual text (and keep it up to date when
+   making changes)
+
+   * The application cannot be translated to other languages by just adding
+   new translations for existing string resources.
+
+   There are quickfixes to automatically extract this hardcoded string into a
+   resource lookup.
+
+0 errors, 38 warnings

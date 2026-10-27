@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hem.hybridphotoassist.CommandParserTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-27T23:53:39.807Z" hostname="runnervmtai0g" time="0.034">
+  <properties/>
+  <testcase name="facesAreRefusedHonestly" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.018"/>
+  <testcase name="unknownIsUnsupported" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.002"/>
+  <testcase name="emptyText" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.0"/>
+  <testcase name="controls" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.002"/>
+  <testcase name="removeWords" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.004"/>
+  <testcase name="brightness" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.001"/>
+  <testcase name="backgrounds" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.002"/>
+  <testcase name="moveDirections" classname="com.hem.hybridphotoassist.CommandParserTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

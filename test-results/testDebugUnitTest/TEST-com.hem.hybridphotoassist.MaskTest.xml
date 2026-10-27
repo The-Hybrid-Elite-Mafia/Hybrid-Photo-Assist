@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hem.hybridphotoassist.MaskTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-27T23:53:40.047Z" hostname="runnervmtai0g" time="0.006">
+  <properties/>
+  <testcase name="resizeKeepsShape" classname="com.hem.hybridphotoassist.MaskTest" time="0.0"/>
+  <testcase name="invertFlips" classname="com.hem.hybridphotoassist.MaskTest" time="0.0"/>
+  <testcase name="dilateAtEdgesStaysInside" classname="com.hem.hybridphotoassist.MaskTest" time="0.0"/>
+  <testcase name="confidenceThreshold" classname="com.hem.hybridphotoassist.MaskTest" time="0.0"/>
+  <testcase name="featherKeepsCentreAndSoftensEdge" classname="com.hem.hybridphotoassist.MaskTest" time="0.004"/>
+  <testcase name="boundsFindsTheSelectedArea" classname="com.hem.hybridphotoassist.MaskTest" time="0.0"/>
+  <testcase name="dilateGrowsByRadiusExactly" classname="com.hem.hybridphotoassist.MaskTest" time="0.0"/>
+  <testcase name="brushPaintsAndErases" classname="com.hem.hybridphotoassist.MaskTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

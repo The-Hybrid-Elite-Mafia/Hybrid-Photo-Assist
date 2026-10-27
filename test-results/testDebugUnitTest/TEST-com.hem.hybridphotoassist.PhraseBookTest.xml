@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.hem.hybridphotoassist.PhraseBookTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-27T23:53:40.055Z" hostname="runnervmtai0g" time="0.042">
+  <properties/>
+  <testcase name="startsEmpty" classname="com.hem.hybridphotoassist.PhraseBookTest" time="0.003"/>
+  <testcase name="everyDropDownChoiceIsSomethingTheAppCanDo" classname="com.hem.hybridphotoassist.PhraseBookTest" time="0.025"/>
+  <testcase name="bothSidesAreEditable" classname="com.hem.hybridphotoassist.PhraseBookTest" time="0.009"/>
+  <testcase name="exactAmounts" classname="com.hem.hybridphotoassist.PhraseBookTest" time="0.0"/>
+  <testcase name="refusesWhatTheAppCantDo" classname="com.hem.hybridphotoassist.PhraseBookTest" time="0.001"/>
+  <testcase name="readsOldListWithoutItsStartingPhrases" classname="com.hem.hybridphotoassist.PhraseBookTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
