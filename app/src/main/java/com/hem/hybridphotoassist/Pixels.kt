@@ -69,7 +69,48 @@ class Pixels(val width: Int, val height: Int, val data: IntArray = IntArray(widt
         return Pixels(width, height, IntArray(n) { argb(a[it], r[it], g[it], b[it]) })
     }
 
+    /**
+     * Brightens (percent > 0, towards white) or darkens (percent < 0, towards black) the pixels under
+     * [mask] (null = whole image), blended by the mask's softness. Returns a new buffer.
+     */
+    fun brightness(percent: Int, mask: Mask?): Pixels {
+        require(mask == null || (mask.width == width && mask.height == height)) { "mask size mismatch" }
+        val p = percent.coerceIn(-100, 100) / 100f
+        val out = IntArray(data.size)
+        for (i in data.indices) {
+            val c = data[i]
+            val a = mask?.get(i) ?: 255
+            if (a == 0 || p == 0f) { out[i] = c; continue }
+            val k = p * a / 255f
+            fun ch(v: Int) = if (k > 0) (v + (255 - v) * k).roundToInt() else (v * (1 + k)).roundToInt()
+            out[i] = argb((c ushr 24) and 0xFF, ch((c shr 16) and 0xFF), ch((c shr 8) and 0xFF), ch(c and 0xFF))
+        }
+        return Pixels(width, height, out)
+    }
+
     companion object {
+        /**
+         * Draws [top] onto a copy of [base] with its top-left at (x, y), using [alpha] (same size as
+         * [top]) as coverage. Parts that fall outside [base] are clipped. Returns the new buffer.
+         */
+        fun overlay(base: Pixels, top: Pixels, alpha: Mask, x: Int, y: Int): Pixels {
+            require(alpha.width == top.width && alpha.height == top.height) { "overlay mask size mismatch" }
+            val out = base.copy()
+            for (ty in 0 until top.height) {
+                val by = y + ty
+                if (by < 0 || by >= base.height) continue
+                for (tx in 0 until top.width) {
+                    val bx = x + tx
+                    if (bx < 0 || bx >= base.width) continue
+                    val a = alpha[ty * top.width + tx]
+                    if (a == 0) continue
+                    val bi = by * base.width + bx
+                    out.data[bi] = lerp(base.data[bi], top.data[ty * top.width + tx], a)
+                }
+            }
+            return out
+        }
+
         fun argb(a: Int, r: Int, g: Int, b: Int): Int =
             (a.coerceIn(0, 255) shl 24) or (r.coerceIn(0, 255) shl 16) or (g.coerceIn(0, 255) shl 8) or b.coerceIn(0, 255)
 

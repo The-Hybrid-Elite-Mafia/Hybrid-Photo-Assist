@@ -14,7 +14,29 @@ class ModelDownloader(private val context: Context) {
 
     val file: File get() = File(context.filesDir, FILE_NAME)
 
-    fun isReady(): Boolean = file.exists() && file.length() >= MIN_BYTES
+    private val verifiedMarker: File get() = File(context.filesDir, "$FILE_NAME.sha256")
+
+    /** The model file is there (it may still need [ensureVerified]). */
+    fun hasFile(): Boolean = file.exists() && file.length() >= MIN_BYTES
+
+    /** The model file is there and its SHA-256 has been checked. */
+    fun isReady(): Boolean = hasFile() && verifiedMarker.exists() && verifiedMarker.readText().trim() == SHA256
+
+    /**
+     * Checks the model file against the known SHA-256 (once; remembered afterwards).
+     * A damaged or different file is deleted and an error is thrown.
+     */
+    @Throws(IOException::class)
+    fun ensureVerified() {
+        if (isReady()) return
+        if (!hasFile()) throw IOException("the fill AI is not downloaded")
+        val got = sha256(file)
+        if (got != SHA256) {
+            file.delete(); verifiedMarker.delete()
+            throw IOException("the fill AI file didn't pass its safety check and was deleted. Tap Erase again to download it fresh")
+        }
+        verifiedMarker.writeText(SHA256)
+    }
 
     /** Blocking. [progress] gets (downloaded bytes, total bytes or -1). */
     @Throws(IOException::class)
@@ -65,7 +87,19 @@ class ModelDownloader(private val context: Context) {
         }
         if (total > 0 && tmp.length() != total) { tmp.delete(); throw IOException("download incomplete") }
         if (tmp.length() < MIN_BYTES) { tmp.delete(); throw IOException("downloaded file is too small (${tmp.length()} bytes)") }
+        val got = sha256(tmp)
+        if (got != SHA256) { tmp.delete(); throw IOException("the download didn't pass its safety check (checksum mismatch), so it was thrown away") }
         if (!tmp.renameTo(file)) { tmp.delete(); throw IOException("could not save model") }
+        verifiedMarker.writeText(SHA256)
+    }
+
+    private fun sha256(f: File): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { input ->
+            val buf = ByteArray(1 shl 16)
+            while (true) { val n = input.read(buf); if (n < 0) break; md.update(buf, 0, n) }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
     companion object {
@@ -73,5 +107,7 @@ class ModelDownloader(private val context: Context) {
         // Apache-2.0 LaMa (Samsung Research) converted for LiteRT.
         const val URL_STRING = "https://huggingface.co/mlboydaisuke/LaMa-Dilated-LiteRT/resolve/main/lama_dilated.tflite"
         const val MIN_BYTES = 150L * 1024 * 1024
+        /** SHA-256 of the file at [URL_STRING]; CI downloads the same file and checks it matches. */
+        const val SHA256 = "SHA256_FROM_CI"
     }
 }

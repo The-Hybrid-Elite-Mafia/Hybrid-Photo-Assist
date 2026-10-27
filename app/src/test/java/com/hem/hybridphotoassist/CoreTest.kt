@@ -171,8 +171,7 @@ class HistoryTest {
 
     @Test fun capDropsOldestSteps() {
         val h = History(maxBytes = 10L * 10 * 4 * 2 * 2) // room for two full 10x10 steps
-        val p = Pixels.solid(10, 10, 0)
-        repeat(5) { h.record(p, p, Box(0, 0, 10, 10)) }
+        repeat(5) { i -> h.record(Pixels.solid(10, 10, i), Pixels.solid(10, 10, i + 1), Box(0, 0, 10, 10)) }
         assertEquals(2, h.undoCount())
     }
 }

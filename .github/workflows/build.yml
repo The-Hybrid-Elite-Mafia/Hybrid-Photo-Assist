@@ -22,6 +22,13 @@ jobs:
           curl -fL --retry 3 -o lama_dilated.tflite \
             https://huggingface.co/mlboydaisuke/LaMa-Dilated-LiteRT/resolve/main/lama_dilated.tflite
           ls -l lama_dilated.tflite
+      - name: Check the model's SHA-256 matches the one the app checks
+        run: |
+          GOT=$(sha256sum lama_dilated.tflite | cut -d' ' -f1)
+          WANT=$(grep -oP 'const val SHA256 = "\K[^"]+' app/src/main/java/com/hem/hybridphotoassist/ModelDownloader.kt)
+          echo "::notice title=fill model sha256::$GOT"
+          if [ "$GOT" != "$WANT" ]; then echo "::error title=fill model checksum::app expects $WANT, file is $GOT"; exit 1; fi
+          echo "checksum matches: $GOT"
       - name: Run model on a test picture
         run: |
           pip install --quiet numpy ai-edge-litert || pip install --quiet numpy tensorflow
@@ -51,6 +58,26 @@ jobs:
         run: |
           set -o pipefail
           gradle --no-daemon --console=plain :app:testDebugUnitTest 2>&1 | tee -a ci.log
+      - name: Android lint (report only; results are listed in the build report)
+        id: lint
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --console=plain :app:lintDebug 2>&1 | tee -a ci.log
+      - name: Lint summary
+        if: always()
+        shell: bash
+        run: |
+          R=app/build/reports/lint-results-debug.xml
+          if [ -f "$R" ]; then
+            E=$(grep -c 'severity="Error"' "$R" || true); W=$(grep -c 'severity="Warning"' "$R" || true)
+            echo "LINT: $E errors, $W warnings (step outcome: ${{ steps.lint.outcome }})" | tee -a ci.log
+            echo "::notice title=lint::$E errors, $W warnings"
+            grep -oP 'id="\K[^"]+(?=".*severity="Error")' "$R" | sort | uniq -c | tee -a ci.log || true
+          else
+            echo "LINT: no report (step outcome: ${{ steps.lint.outcome }})" | tee -a ci.log
+          fi
       - name: Build unsigned release APK
         # The signing key never goes to GitHub. The APK is signed afterwards with Steven's own key.
         env:
@@ -89,6 +116,8 @@ jobs:
           cp ci.log /tmp/ciout/ci.log
           [ -d out ] && cp out/* /tmp/ciout/ || true
           [ -d app/build/reports/tests ] && cp -r app/build/reports/tests /tmp/ciout/test-reports || true
+          [ -d app/build/test-results ] && cp -r app/build/test-results /tmp/ciout/test-results || true
+          cp app/build/reports/lint-results-debug.* /tmp/ciout/ 2>/dev/null || true
           cd /tmp/ciout
           git init -q -b ci-out
           git config user.name "ci"; git config user.email "ci@users.noreply.github.com"

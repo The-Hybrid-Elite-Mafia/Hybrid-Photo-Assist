@@ -98,6 +98,11 @@ class EditorView @JvmOverloads constructor(
 
     fun refreshImage() = invalidate()
 
+    // Original photo shown while "Hold: Before" is pressed (may be a smaller copy; drawn at image size).
+    private var compare: Bitmap? = null
+
+    fun showCompare(original: Bitmap?) { compare = original; invalidate() }
+
     fun setSelection(mask: Mask?) {
         selection = mask
         rebuildOverlay()
@@ -196,6 +201,16 @@ class EditorView @JvmOverloads constructor(
         val bmp = image ?: return
         canvas.save()
         canvas.concat(drawMatrix)
+        val before = compare
+        if (before != null) {
+            // Only the original: no overlay or cut-out, so the two are easy to compare.
+            canvas.save()
+            canvas.scale(bmp.width.toFloat() / before.width, bmp.height.toFloat() / before.height)
+            canvas.drawBitmap(before, 0f, 0f, bitmapPaint)
+            canvas.restore()
+            canvas.restore()
+            return
+        }
         canvas.drawBitmap(bmp, 0f, 0f, bitmapPaint)
         overlay?.let { ov ->
             if (cutout == null) {

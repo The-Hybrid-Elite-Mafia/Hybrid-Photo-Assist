@@ -3,6 +3,7 @@ package com.hem.hybridphotoassist
 import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
@@ -12,14 +13,25 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.annotation.SuppressLint
+import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import com.hem.hybridphotoassist.CommandParser.BackgroundKind
+import com.hem.hybridphotoassist.CommandParser.Command
 import com.google.android.material.button.MaterialButton
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,6 +53,9 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
     private lateinit var toolScroll: View
     private lateinit var toolButtons: Map<EditorView.Tool, MaterialButton>
     private lateinit var actionButtons: List<View>
+    private lateinit var btnUndo: View
+    private lateinit var btnRedo: View
+    private lateinit var promptInput: EditText
 
     private val worker = Executors.newSingleThreadExecutor()
     @Volatile private var busy = false
@@ -48,6 +63,8 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
     // Editing state (touched only on the worker thread or while not busy).
     private var image: Pixels? = null
     private var bitmap: Bitmap? = null
+    /** Smaller copy of the photo as opened, for "Hold: Before". Never edited. */
+    private var originalPreview: Bitmap? = null
     private var selection: Mask? = null
     private val history = History()
     private var selector: Selector? = null
@@ -71,7 +88,17 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 15 draws apps edge to edge: pad the layout by the status/navigation bars and the
+        // keyboard ourselves, so nothing hides behind them (the prompt box stays above the keyboard).
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContentView(R.layout.activity_main)
+        val root = findViewById<View>(R.id.root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            v.setPadding(bars.left, bars.top, bars.right, max(bars.bottom, ime.bottom))
+            WindowInsetsCompat.CONSUMED
+        }
         editor = findViewById(R.id.editor)
         status = findViewById(R.id.status)
         progress = findViewById(R.id.progress)
@@ -91,8 +118,25 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         findViewById<View>(R.id.btnOpen).setOnClickListener {
             if (!busy) pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
-        findViewById<View>(R.id.btnUndo).setOnClickListener { undoRedo(true) }
-        findViewById<View>(R.id.btnRedo).setOnClickListener { undoRedo(false) }
+        btnUndo = findViewById(R.id.btnUndo)
+        btnRedo = findViewById(R.id.btnRedo)
+        btnUndo.setOnClickListener { undoRedo(true) }
+        btnRedo.setOnClickListener { undoRedo(false) }
+        promptInput = findViewById(R.id.promptInput)
+        findViewById<View>(R.id.btnApply).setOnClickListener { applyPrompt() }
+        findViewById<View>(R.id.btnPromptHelp).setOnClickListener { showPromptHelp() }
+        promptInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) { applyPrompt(); true } else false
+        }
+        setupCompareButton(findViewById(R.id.btnCompare))
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (moveBefore != null && !busy) { cancelMove(); return }
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                isEnabled = true
+            }
+        })
         findViewById<View>(R.id.btnSave).setOnClickListener { save() }
         findViewById<View>(R.id.toolClear).setOnClickListener { clearSelection() }
         findViewById<View>(R.id.toolErase).setOnClickListener { withFillModel { erase() } }
@@ -101,8 +145,7 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         findViewById<View>(R.id.btnMoveApply).setOnClickListener { applyMove() }
         findViewById<View>(R.id.btnMoveCancel).setOnClickListener { cancelMove() }
         actionButtons = listOf<View>(
-            findViewById(R.id.btnOpen), findViewById(R.id.btnUndo), findViewById(R.id.btnRedo),
-            findViewById(R.id.btnSave), findViewById(R.id.toolClear), findViewById(R.id.toolErase),
+            findViewById(R.id.btnOpen), findViewById(R.id.btnSave), findViewById(R.id.btnApply), findViewById(R.id.toolClear), findViewById(R.id.toolErase),
             findViewById(R.id.toolMove), findViewById(R.id.toolBackground)
         ) + toolButtons.values
 
@@ -116,6 +159,7 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         })
 
         setTool(EditorView.Tool.SELECT)
+        updateUndoRedo()
         setStatus("Open a photo to start. Everything runs on this phone.")
         handleIncoming(intent)
     }
@@ -169,7 +213,16 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         progress.visibility = if (b) View.VISIBLE else View.GONE
         actionButtons.forEach { it.isEnabled = !b }
         editor.isEnabled = !b
+        updateUndoRedo()
         if (text != null) setStatus(text)
+    }
+
+    /** Undo is usable when there is a step to undo, or a move to call off; Redo when there is a step to redo. */
+    private fun updateUndoRedo() {
+        if (!::btnUndo.isInitialized) return
+        val moving = moveBefore != null
+        btnUndo.isEnabled = !busy && (history.canUndo || moving)
+        btnRedo.isEnabled = !busy && !moving && history.canRedo
     }
 
     /** Runs [work] on the worker thread with the busy UI, then [done] on the main thread. */
@@ -228,13 +281,22 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
             }
             val px = IntArray(decoded.width * decoded.height)
             decoded.getPixels(px, 0, decoded.width, 0, 0, decoded.width, decoded.height)
-            Pair(decoded, Pixels(decoded.width, decoded.height, px))
-        }) { (bmp, px) ->
+            val long = max(decoded.width, decoded.height)
+            val preview = if (long > PREVIEW_SIDE) {
+                val s = PREVIEW_SIDE.toFloat() / long
+                Bitmap.createScaledBitmap(decoded, max(1, (decoded.width * s).roundToInt()), max(1, (decoded.height * s).roundToInt()), true)
+            } else decoded.copy(Bitmap.Config.ARGB_8888, false)
+            Triple(decoded, Pixels(decoded.width, decoded.height, px), preview)
+        }) { (bmp, px, preview) ->
+            editor.showCompare(null)
             bitmap?.recycle()
             bitmap = bmp
+            originalPreview?.recycle()
+            originalPreview = preview
             image = px
             selection = null
             history.clear()
+            updateUndoRedo()
             selectorDirty = true
             emptyHint.visibility = View.GONE
             editor.setSelection(null)
@@ -294,7 +356,7 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         if (busy) return
         if (needImage() == null || needSelection() == null) return
         if (inpainter != null) { then(); return }
-        if (downloader.isReady()) { loadFillModel(then); return }
+        if (downloader.hasFile()) { loadFillModel(then); return }
         AlertDialog.Builder(this)
             .setTitle("One-time download")
             .setMessage("Erase and Move need the fill AI (about 183 MB). It downloads once and then works offline. Your photos never leave the phone. Wi-Fi recommended.\n\nDownload now?")
@@ -323,7 +385,8 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
     }
 
     private fun loadFillModel(then: () -> Unit) {
-        runBusy("Loading fill AI…", {
+        runBusy("Checking and loading fill AI…", {
+            downloader.ensureVerified()
             val model = LamaModel(downloader.file, threads = 4)
             lama = model
             Inpainter(model)
@@ -341,7 +404,8 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         val ip = inpainter ?: return
         runBusy("Erasing and filling…", { ip.inpaint(img, sel) }) { r ->
             if (r == null) { setStatus("Nothing to erase."); return@runBusy }
-            history.record(img, r.image, r.changed)
+            if (!history.record(img, r.image, r.changed)) { setStatus("That didn't change the photo. Try selecting a bit more around it."); return@runBusy }
+            updateUndoRedo()
             image = r.image
             pushImageToBitmap()
             selection = null
@@ -382,6 +446,7 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
             moveRow.visibility = View.VISIBLE
             toolScroll.visibility = View.GONE
             brushRow.visibility = View.GONE
+            updateUndoRedo()
             setStatus("Drag it where you want. Pinch with two fingers to resize. Then tap Place it here.")
         }
     }
@@ -406,12 +471,12 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
             val changed = (moveChanged ?: Box(0, 0, base.width, base.height)).let { if (dest.isEmpty()) it else it.union(dest) }
             Pair(Pixels(base.width, base.height, px), changed)
         }) { (result, changed) ->
-            history.record(before, result, changed)
-            image = result
+            val recorded = history.record(before, result, changed)
+            image = if (recorded) result else before
             endMoveSession()
             pushImageToBitmap()
             editor.refreshImage()
-            setStatus("Moved. Undo if you don't like it.")
+            setStatus(if (recorded) "Moved. Undo if you don't like it." else "It ended up where it started, so nothing changed.")
         }
     }
 
@@ -433,6 +498,7 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
         moveRow.visibility = View.GONE
         toolScroll.visibility = View.VISIBLE
         setTool(EditorView.Tool.SELECT)
+        updateUndoRedo()
     }
 
     // ------------------------------------------------------------------ background
@@ -490,7 +556,8 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
             val feather = max(2, max(img.width, img.height) / 900)
             Pixels.composite(bg, img, sel.feathered(feather))
         }) { result ->
-            history.record(img, result, Box(0, 0, img.width, img.height))
+            if (!history.record(img, result, Box(0, 0, img.width, img.height))) { setStatus("That background is the same as before, so nothing changed."); return@runBusy }
+            updateUndoRedo()
             image = result
             selectorDirty = true
             pushImageToBitmap()
@@ -502,14 +569,25 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
     // ------------------------------------------------------------------ undo / save
 
     private fun undoRedo(isUndo: Boolean) {
-        if (busy || moveBefore != null) return
+        if (busy) { setStatus("Still working on the last step. Undo/Redo will work when it's done."); return }
+        if (moveBefore != null) {
+            // A move that isn't placed yet is not in the history: Undo calls it off.
+            if (isUndo) { cancelMove(); setStatus("Move called off. The photo is back how it was.") }
+            else setStatus("Place it or cancel the move first.")
+            return
+        }
         val img = needImage() ?: return
         val ok = if (isUndo) history.undo(img) else history.redo(img)
-        if (!ok) { setStatus(if (isUndo) "Nothing to undo." else "Nothing to redo."); return }
+        if (!ok) { setStatus(if (isUndo) "Nothing to undo." else "Nothing to redo."); updateUndoRedo(); return }
         selectorDirty = true
         pushImageToBitmap()
         editor.refreshImage()
-        setStatus(if (isUndo) "Undone." else "Redone.")
+        updateUndoRedo()
+        val left = if (isUndo) history.undoCount() else history.redoCount()
+        setStatus(
+            if (isUndo) "Undone. " + (if (left > 0) "$left more step(s) can be undone." else "That was the first edit.")
+            else "Redone. " + (if (left > 0) "$left more step(s) can be redone." else "Nothing more to redo.")
+        )
     }
 
     private fun save() {
@@ -524,19 +602,191 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
             val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: error("could not create the file")
-            contentResolver.openOutputStream(uri).use { out ->
-                requireNotNull(out) { "could not open the file" }
-                check(bmp.compress(Bitmap.CompressFormat.JPEG, 95, out)) { "could not write the photo" }
+                ?: error("could not create the file (is the phone's storage full?)")
+            try {
+                contentResolver.openOutputStream(uri).use { out ->
+                    requireNotNull(out) { "could not open the file" }
+                    check(bmp.compress(Bitmap.CompressFormat.JPEG, 95, out)) { "could not write the photo" }
+                }
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+                // Read the saved file back to be sure it is a real, complete photo of the right size.
+                val check = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, check) }
+                check(check.outWidth == bmp.width && check.outHeight == bmp.height) {
+                    "the saved file didn't read back correctly (${check.outWidth} × ${check.outHeight})"
+                }
+            } catch (e: Exception) {
+                runCatching { contentResolver.delete(uri, null, null) }
+                throw e
             }
-            values.clear()
-            values.put(MediaStore.Images.Media.IS_PENDING, 0)
-            contentResolver.update(uri, values, null, null)
-            name
+            "$name (${bmp.width} × ${bmp.height})"
         }) { name -> setStatus("Saved to Pictures/Hybrid Photo Assist/$name. Your original is untouched.") }
     }
 
+    // ------------------------------------------------------------------ before / after
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupCompareButton(b: View) {
+        b.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val orig = originalPreview
+                    if (orig == null || moveBefore != null || busy) {
+                        setStatus(if (orig == null) "Open a photo first." else "Finish what you're doing first.")
+                    } else {
+                        editor.showCompare(orig)
+                        setStatus("Showing the ORIGINAL photo. Let go to see your edits.")
+                    }
+                }
+                MotionEvent.ACTION_UP -> { editor.showCompare(null); v.performClick() }
+                MotionEvent.ACTION_CANCEL -> editor.showCompare(null)
+            }
+            true
+        }
+        b.setOnClickListener { if (originalPreview != null && moveBefore == null && !busy) setStatus("Back to your edited photo.") }
+    }
+
+    // ------------------------------------------------------------------ typed instructions
+
+    private fun hideKeyboard() {
+        promptInput.clearFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(promptInput.windowToken, 0)
+    }
+
+    private fun showPromptHelp() {
+        AlertDialog.Builder(this)
+            .setTitle("What you can type")
+            .setMessage(
+                "First tap the thing you mean with Select (or paint it with Brush +). Then type, for example:\n\n" +
+                "• Remove the selected object and fill the gap\n" +
+                "• Move it left   /   move it up a little   /   move it way right\n" +
+                "• Make the selected area brighter   /   a little darker\n" +
+                "• Make the whole photo brighter\n" +
+                "• Blur the background   /   make the background white\n" +
+                "• Undo   •   Redo   •   Cancel   •   Save\n\n" +
+                "This box understands simple keywords. It is not a chat AI.\n" +
+                "Face changes (smile, eyes, expression) are NOT supported: the phone has no face-editing AI, " +
+                "so the app will tell you instead of pretending."
+            )
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun applyPrompt() {
+        val text = promptInput.text.toString()
+        val cmd = CommandParser.parse(text)
+        if (cmd != Command.Empty) hideKeyboard()
+        if (busy && cmd !is Command.Unsupported && cmd != Command.Empty) {
+            setStatus("Still working on the last step. Try again when it's done."); return
+        }
+        if (moveBefore != null && cmd !in listOf(Command.Undo, Command.Cancel, Command.Empty) && cmd !is Command.Unsupported) {
+            setStatus("Place it or cancel the move first (buttons above)."); return
+        }
+        when (cmd) {
+            Command.Empty -> setStatus("Type what you want to change, then tap Apply. Tap ? for examples.")
+            is Command.Unsupported -> setStatus(cmd.reason)
+            Command.Undo -> undoRedo(true)
+            Command.Redo -> undoRedo(false)
+            Command.Cancel -> when {
+                moveBefore != null -> cancelMove()
+                selection != null -> { clearSelection(); setStatus("Selection cleared.") }
+                else -> setStatus("Nothing to cancel.")
+            }
+            Command.ClearSelection -> { clearSelection(); setStatus("Selection cleared.") }
+            Command.Save -> save()
+            Command.Erase -> {
+                if (needImage() == null) return
+                if (selection == null || selection!!.isEmpty()) {
+                    setStatus("Tap the thing you want removed first (Select), then tap Apply again. I can't find objects from words."); return
+                }
+                withFillModel { erase() }
+            }
+            is Command.Move -> {
+                if (needImage() == null) return
+                if (selection == null || selection!!.isEmpty()) {
+                    setStatus("Tap the thing you want to move first (Select), then tap Apply again."); return
+                }
+                withFillModel { moveBy(cmd.dx, cmd.dy, cmd.fraction) }
+            }
+            is Command.Brightness -> adjustBrightness(cmd.percent, cmd.wholePhoto)
+            is Command.Background -> {
+                if (needImage() == null) return
+                if (selection == null || selection!!.isEmpty()) {
+                    setStatus("Select the person or thing to KEEP first, then tap Apply again."); return
+                }
+                when (cmd.kind) {
+                    BackgroundKind.BLUR -> applyBackground("Blurring background…") { img -> blurredBackground(img) }
+                    BackgroundKind.BLACK -> applyBackground("Changing background…") { img -> Pixels.solid(img.width, img.height, 0x000000) }
+                    BackgroundKind.WHITE -> applyBackground("Changing background…") { img -> Pixels.solid(img.width, img.height, 0xFFFFFF) }
+                    BackgroundKind.GRAY -> applyBackground("Changing background…") { img -> Pixels.solid(img.width, img.height, 0x808080) }
+                    BackgroundKind.LIME -> applyBackground("Changing background…") { img -> Pixels.solid(img.width, img.height, 0xC0FF3E) }
+                }
+            }
+        }
+    }
+
+    /** Brightens/darkens the selection (or the whole photo). */
+    private fun adjustBrightness(percent: Int, wholePhoto: Boolean) {
+        val img = needImage() ?: return
+        val sel = selection?.takeIf { !it.isEmpty() }
+        if (!wholePhoto && sel == null) {
+            setStatus("Select an area first, or type \"make the whole photo ${if (percent > 0) "brighter" else "darker"}\"."); return
+        }
+        val word = if (percent > 0) "Brightening" else "Darkening"
+        runBusy("$word…", {
+            val mask = if (wholePhoto) null else sel!!.feathered(max(1, max(img.width, img.height) / 900))
+            val out = img.brightness(percent, mask)
+            val box = if (wholePhoto) Box(0, 0, img.width, img.height) else (mask!!.bounds() ?: Box(0, 0, 0, 0))
+            Pair(out, box)
+        }) { (out, box) ->
+            if (!history.record(img, out, box)) { setStatus("That didn't change anything (already as bright/dark as it goes?)."); return@runBusy }
+            image = out
+            updateUndoRedo()
+            selectorDirty = true
+            pushImageToBitmap()
+            editor.refreshImage()
+            setStatus("${if (percent > 0) "Brighter" else "Darker"} (${kotlin.math.abs(percent)}%). Undo if you don't like it.")
+        }
+    }
+
+    /** Typed move: lifts the selection, fills the gap and places it [fraction] of the photo away. */
+    private fun moveBy(dx: Int, dy: Int, fraction: Float) {
+        val img = needImage() ?: return
+        val sel = needSelection() ?: return
+        val ip = inpainter ?: return
+        val b = sel.bounds() ?: return
+        val stepX = (dx * fraction * img.width).roundToInt()
+        val stepY = (dy * fraction * img.height).roundToInt()
+        val dest = Box(b.left + stepX, b.top + stepY, b.right + stepX, b.bottom + stepY)
+        if (dest.clampTo(img.width, img.height).isEmpty()) { setStatus("That would push it right off the photo. Try a smaller move."); return }
+        runBusy("Moving it and filling the gap…", {
+            val soft = sel.feathered(2).crop(b)
+            val cut = img.crop(b)
+            val filled = ip.inpaint(img, sel) ?: return@runBusy null
+            val out = Pixels.overlay(filled.image, cut, soft, dest.left, dest.top)
+            Pair(out, filled.changed.union(dest.clampTo(img.width, img.height)))
+        }) { r ->
+            if (r == null) { setStatus("Couldn't lift that. Try selecting it again."); return@runBusy }
+            val (out, changed) = r
+            if (!history.record(img, out, changed)) { setStatus("That didn't change the photo."); return@runBusy }
+            image = out
+            updateUndoRedo()
+            selection = null
+            selectorDirty = true
+            editor.setSelection(null)
+            pushImageToBitmap()
+            editor.refreshImage()
+            setTool(EditorView.Tool.SELECT)
+            val dir = listOfNotNull(if (dy < 0) "up" else if (dy > 0) "down" else null, if (dx < 0) "left" else if (dx > 0) "right" else null).joinToString(" and ")
+            setStatus("Moved $dir. Undo if you don't like it. For exact placing, use the Move button and drag.")
+        }
+    }
+
     companion object {
+        /** Long side of the "Hold: Before" copy of the original. */
+        const val PREVIEW_SIDE = 2048
         /** Longest side we edit at. Normal 12 MP shots fit; bigger ones (50 or 200 MP) are scaled down to this so the phone does not run out of memory. */
         const val MAX_SIDE = 4096
     }
