@@ -150,40 +150,55 @@ class BrightnessAndOverlayTest {
 }
 
 class PhraseBookTest {
-    @Test fun defaultsIncludeMoves() {
-        val b = PhraseBook()
-        assertEquals(Command.Move(-1, 0, CommandParser.MOVE_NORMAL), b.match("Move left"))
-        assertEquals(Command.Move(1, 0, CommandParser.MOVE_NORMAL), b.match("  move RIGHT! "))
+    @Test fun startsEmpty() {
+        assertTrue(PhraseBook().entries.isEmpty())
+        assertTrue(PhraseBook.parse(null).entries.isEmpty())
+        assertEquals(null, PhraseBook().match("move left"))
     }
 
-    @Test fun addEditDeleteAndRoundTrip() {
+    @Test fun bothSidesAreEditable() {
         val b = PhraseBook()
-        assertEquals(null, b.put("Scoot it left", PhraseBook.Action.MOVE_LEFT_LITTLE))
-        assertEquals(Command.Move(-1, 0, CommandParser.MOVE_SMALL), b.match("scoot it left"))
-        val i = b.entries.indexOfFirst { it.phrase == "Scoot it left" }
-        assertEquals(null, b.put("Scoot it left", PhraseBook.Action.ERASE, i))
-        assertEquals(Command.Erase, b.match("Scoot it left."))
+        assertEquals(null, b.put("Scoot it over", "move left 7%"))
+        assertEquals(Command.Move(-1, 0, 0.07f), b.match("scoot it over!"))
+        val i = b.entries.indexOfFirst { it.phrase == "Scoot it over" }
+        assertEquals(null, b.put("Slide it", "Move right a little", i))       // change what I say AND what it does
+        assertEquals(null, b.match("scoot it over"))
+        assertEquals(Command.Move(1, 0, CommandParser.MOVE_SMALL), b.match("slide it"))
+        assertEquals(null, b.put("Pop it", "Brighter 35%"))
+        assertEquals(Command.Brightness(35, wholePhoto = false), b.match("pop it"))
         val again = PhraseBook.parse(b.serialize())
         assertEquals(b.entries, again.entries)
-        again.remove(again.entries.indexOfFirst { it.phrase == "Scoot it left" })
-        assertEquals(null, again.match("scoot it left"))
+        again.remove(0)
+        assertEquals(null, again.match("slide it"))
     }
 
-    @Test fun rejectsEmptyAndDuplicates() {
+    @Test fun refusesWhatTheAppCantDo() {
         val b = PhraseBook()
-        assertTrue(b.put("   ", PhraseBook.Action.UNDO) != null)
-        assertTrue(b.put("move LEFT", PhraseBook.Action.UNDO) != null) // same as the default "Move left"
-        assertTrue(b.put("x".repeat(PhraseBook.MAX_LEN + 1), PhraseBook.Action.UNDO) != null)
+        assertTrue(b.put("fix her", "widen her smile")!!.contains("can't do"))
+        assertTrue(b.put("x", "") != null)
+        assertTrue(b.put("   ", "undo") != null)
+        assertEquals(null, b.put("back", "undo"))
+        assertTrue(b.put("BACK!", "redo") != null) // same phrase twice
+        assertTrue(b.put("y".repeat(PhraseBook.MAX_LEN + 1), "undo") != null)
+        assertEquals(1, b.entries.size)
     }
 
-    @Test fun brokenSavedLinesAreSkipped() {
-        val b = PhraseBook.parse("NOT_AN_ACTION\tfoo\nUNDO\tgo back\nbroken line\n")
-        assertEquals(listOf(PhraseBook.Entry("go back", PhraseBook.Action.UNDO)), b.entries)
-        assertEquals(PhraseBook.defaults(), PhraseBook.parse(null).entries)
+    @Test fun readsOldListWithoutItsStartingPhrases() {
+        val b = PhraseBook.parse("MOVE_LEFT\tMove left\nMOVE_LEFT_LITTLE\tscoot\nNOT_AN_ACTION\tfoo\nbroken line\n")
+        assertEquals(listOf(PhraseBook.Entry("scoot", "Move left a little")), b.entries)
+        assertEquals(Command.Move(-1, 0, CommandParser.MOVE_SMALL), b.match("scoot"))
     }
 
-    @Test fun everyActionMapsToARealCommand() {
-        for (a in PhraseBook.Action.values()) assertTrue(a.name, a.toCommand() !is Command.Unsupported && a.toCommand() != Command.Empty)
+    @Test fun everyDropDownChoiceIsSomethingTheAppCanDo() {
+        for (s in PhraseBook().suggestions()) {
+            val c = CommandParser.parse(s)
+            assertTrue(s, c !is Command.Unsupported && c != Command.Empty)
+        }
+    }
+
+    @Test fun exactAmounts() {
+        assertEquals(Command.Move(0, -1, 0.12f), CommandParser.parse("move up 12%"))
+        assertEquals(Command.Brightness(-8, wholePhoto = true), CommandParser.parse("whole photo darker 8 percent"))
     }
 }
 

@@ -19,9 +19,9 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.Spinner
 import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
@@ -823,50 +823,79 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
     private fun showPhrases() {
         if (busy) return
         val list = phrases.entries
-        val items = list.map { "${it.phrase}   →   ${it.action.label}" }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("My phrases (tap one)")
-            .setItems(items) { _, i -> phraseOptions(i) }
+        val b = AlertDialog.Builder(this)
+            .setTitle(if (list.isEmpty()) "My phrases" else "My phrases (tap one)")
             .setPositiveButton("Add a phrase") { _, _ -> editPhrase(null) }
-            .setNeutralButton("Reset list") { _, _ ->
-                AlertDialog.Builder(this)
-                    .setMessage("Put the list back to the starting phrases? Your own phrases will be removed.")
-                    .setPositiveButton("Reset") { _, _ -> phrases.resetToDefaults(); savePhrases(); setStatus("Phrase list reset.") }
-                    .setNegativeButton("Keep mine", null).show()
-            }
             .setNegativeButton("Close", null)
-            .show()
+        if (list.isEmpty()) {
+            b.setMessage("No phrases yet. Add your own: what you'll say, and what it does. " +
+                "You don't need to add things the box already understands, like \"move left\".")
+        } else {
+            b.setItems(list.map { "${it.phrase}   →   ${it.does}" }.toTypedArray()) { _, i -> phraseOptions(i) }
+            b.setNeutralButton("Delete all") { _, _ ->
+                AlertDialog.Builder(this)
+                    .setMessage("Delete all ${list.size} of your phrases?")
+                    .setPositiveButton("Delete all") { _, _ -> phrases.clear(); savePhrases(); setStatus("All phrases deleted.") }
+                    .setNegativeButton("Keep them", null).show()
+            }
+        }
+        b.show()
     }
 
     private fun phraseOptions(i: Int) {
         val e = phrases.entries.getOrNull(i) ?: return
         AlertDialog.Builder(this)
             .setTitle("\"${e.phrase}\"")
-            .setMessage("Does: ${e.action.label}")
+            .setMessage("Does: ${e.does}\n\n${CommandParser.describe(CommandParser.parse(e.does))}")
             .setPositiveButton("Use it") { _, _ -> promptInput.setText(e.phrase); promptInput.setSelection(e.phrase.length); applyPrompt() }
             .setNeutralButton("Delete") { _, _ -> phrases.remove(i); savePhrases(); setStatus("Deleted \"${e.phrase}\".") }
             .setNegativeButton("Edit") { _, _ -> editPhrase(i) }
             .show()
     }
 
-    /** Add (index null) or change a phrase: what you type, and which real action it runs. */
+    /**
+     * Add (index null) or change a phrase. Both boxes are free text: what you'll say, and what it does
+     * (type it, or pick from the drop-down and change it). The second box is checked as you type.
+     */
     private fun editPhrase(index: Int?) {
         val old = index?.let { phrases.entries.getOrNull(it) }
         val pad = (16 * resources.displayMetrics.density).toInt()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad / 2, pad, 0) }
-        val input = EditText(this).apply {
-            hint = "What you'll type, e.g. scoot it left"
+        val sayInput = EditText(this).apply {
+            hint = "What you'll say, e.g. scoot it over"
             setText(old?.phrase ?: promptInput.text.toString().trim())
             setSingleLine(true)
         }
-        val actions = PhraseBook.Action.values()
-        val spinner = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, actions.map { it.label })
-            setSelection(actions.indexOf(old?.action ?: PhraseBook.Action.MOVE_LEFT))
+        val doesInput = AutoCompleteTextView(this).apply {
+            hint = "What it does, e.g. move left 7%"
+            setText(old?.does ?: "")
+            setSingleLine(true)
+            threshold = 1
+            setAdapter(ArrayAdapter(this@MainActivity, android.R.layout.simple_dropdown_item_1line, phrases.suggestions()))
+            setOnClickListener { showDropDown() }
+            setOnFocusChangeListener { _, has -> if (has) post { showDropDown() } }
         }
-        box.addView(input)
-        box.addView(TextView(this).apply { text = "What it does:"; setPadding(0, pad / 2, 0, 0) })
-        box.addView(spinner)
+        val check = TextView(this).apply { setPadding(0, pad / 3, 0, 0); textSize = 13f }
+        fun refreshCheck() {
+            val c = CommandParser.parse(doesInput.text.toString())
+            check.text = when (c) {
+                Command.Empty -> "Type what it does, or tap the box for choices. You can change any choice."
+                is Command.Unsupported -> "✗ The app can't do that. " + CommandParser.CAN_DO
+                else -> "✓ " + CommandParser.describe(c)
+            }
+            check.setTextColor(getColor(if (c is Command.Unsupported) R.color.hem_dim else R.color.hem_lime))
+        }
+        doesInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(e: android.text.Editable?) = refreshCheck()
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+        refreshCheck()
+        box.addView(TextView(this).apply { text = "When I say:" })
+        box.addView(sayInput)
+        box.addView(TextView(this).apply { text = "It does:"; setPadding(0, pad / 2, 0, 0) })
+        box.addView(doesInput)
+        box.addView(check)
         val dlg = AlertDialog.Builder(this)
             .setTitle(if (old == null) "Add a phrase" else "Edit phrase")
             .setView(box)
@@ -875,9 +904,12 @@ class MainActivity : AppCompatActivity(), EditorView.Listener {
             .create()
         dlg.setOnShowListener {
             dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val err = phrases.put(input.text.toString(), actions[spinner.selectedItemPosition], index)
-                if (err != null) input.error = err
-                else { savePhrases(); dlg.dismiss(); setStatus("Saved. Type \"${input.text.toString().trim()}\" and tap Apply.") }
+                val err = phrases.put(sayInput.text.toString(), doesInput.text.toString(), index)
+                if (err == null) {
+                    savePhrases(); dlg.dismiss()
+                    setStatus("Saved. Type \"${sayInput.text.toString().trim()}\" and tap Apply.")
+                } else if (err.startsWith("Type what you'll say") || err.contains("already in your list")) sayInput.error = err
+                else doesInput.error = err
             }
         }
         dlg.show()

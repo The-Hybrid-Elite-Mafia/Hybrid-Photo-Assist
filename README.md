@@ -14,8 +14,9 @@ Private Android photo editor for Steven's Galaxy S24 Ultra. All editing runs on 
   - "blur the background", "make the background white / black / gray / lime"
   - "undo", "redo", "cancel", "deselect", "save"
   - You must select the object first; the app cannot find objects from words.
-- **My phrases (Edit button):** add, change or delete your own phrases ("scoot it left", "kill it"…). Each one is tied to a
-  real action picked from a list, so a phrase can never claim an edit the app can't do. Saved on the phone.
+- **My phrases (Edit button):** starts empty. Add your own: *when I say* (anything) and *it does* (type it, or pick
+  from the drop-down and change it; exact amounts work, e.g. "move left 7%", "brighter 35%"). Both can be edited
+  later. "It does" is checked as you type, so a phrase can only do something the app really can. Saved on the phone.
 - **Reference photos (Reference button):** add up to 30 (private copies inside the app, never uploaded), then:
   - *Match the look*: moves your photo's colours and brightness towards the reference (Light / Medium / Full).
   - *Match the scene / vibe*: the same plus the brightness curve, so contrast and shadows follow the reference.

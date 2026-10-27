@@ -97,12 +97,15 @@ object CommandParser {
             // Otherwise "background" just describes where the object is ("remove the man in the background").
         }
 
+        // An exact amount, e.g. "move left 7%" or "brighter 35 percent".
+        val pct = Regex("\\b(\\d{1,3}) ?(%|percent|per cent)").find(t)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(1, 100)
+
         // Brightness.
         val brighter = brighterWords.any { has(t, it) }
         val darker = darkerWords.any { has(t, it) }
         if (brighter || darker) {
             if (brighter && darker) return Command.Unsupported("Brighter or darker? Say just one. Your photo was not changed.")
-            val amount = (BRIGHT_NORMAL * strength(t)).toInt().coerceIn(1, 80)
+            val amount = pct ?: (BRIGHT_NORMAL * strength(t)).toInt().coerceIn(1, 80)
             val whole = wholeWords.any { has(t, it) } && !has(t, "selected") && !has(t, "selection")
             return Command.Brightness(if (brighter) amount else -amount, wholePhoto = whole)
         }
@@ -122,6 +125,7 @@ object CommandParser {
             }
             val s = strength(t)
             val fraction = when {
+                pct != null -> pct / 100f
                 s < 1f -> MOVE_SMALL
                 s > 1f -> MOVE_LARGE
                 else -> MOVE_NORMAL
@@ -133,6 +137,27 @@ object CommandParser {
         if (eraseWords.any { has(t, it) }) return Command.Erase
 
         return Command.Unsupported("I don't know how to do that. $CAN_DO Your photo was not changed.")
+    }
+
+    /** Plain-words description of what a command will do (shown when you edit a phrase). */
+    fun describe(c: Command): String = when (c) {
+        Command.Empty -> "Nothing yet."
+        Command.Erase -> "Removes what you selected and fills the gap."
+        is Command.Move -> {
+            val dir = listOfNotNull(if (c.dy < 0) "up" else if (c.dy > 0) "down" else null, if (c.dx < 0) "left" else if (c.dx > 0) "right" else null).joinToString(" and ")
+            "Moves what you selected $dir by ${(c.fraction * 100).toInt()}% of the photo."
+        }
+        is Command.Brightness -> "Makes ${if (c.wholePhoto) "the whole photo" else "what you selected"} ${if (c.percent > 0) "brighter" else "darker"} by ${kotlin.math.abs(c.percent)}%."
+        is Command.Background -> "Keeps what you selected and makes the background " + when (c.kind) {
+            BackgroundKind.BLUR -> "blurry."; BackgroundKind.BLACK -> "black."; BackgroundKind.WHITE -> "white."
+            BackgroundKind.GRAY -> "gray."; BackgroundKind.LIME -> "lime."
+        }
+        Command.Undo -> "Undo."
+        Command.Redo -> "Redo."
+        Command.Cancel -> "Cancels a move, or clears the selection."
+        Command.ClearSelection -> "Clears the selection."
+        Command.Save -> "Saves the photo."
+        is Command.Unsupported -> c.reason
     }
 
     private fun backgroundKind(t: String): BackgroundKind? = when {
