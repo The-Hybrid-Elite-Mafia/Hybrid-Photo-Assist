@@ -148,3 +148,81 @@ class BrightnessAndOverlayTest {
         assertEquals(0xFF000000.toInt(), base[4, 0]) // base untouched
     }
 }
+
+class PhraseBookTest {
+    @Test fun defaultsIncludeMoves() {
+        val b = PhraseBook()
+        assertEquals(Command.Move(-1, 0, CommandParser.MOVE_NORMAL), b.match("Move left"))
+        assertEquals(Command.Move(1, 0, CommandParser.MOVE_NORMAL), b.match("  move RIGHT! "))
+    }
+
+    @Test fun addEditDeleteAndRoundTrip() {
+        val b = PhraseBook()
+        assertEquals(null, b.put("Scoot it left", PhraseBook.Action.MOVE_LEFT_LITTLE))
+        assertEquals(Command.Move(-1, 0, CommandParser.MOVE_SMALL), b.match("scoot it left"))
+        val i = b.entries.indexOfFirst { it.phrase == "Scoot it left" }
+        assertEquals(null, b.put("Scoot it left", PhraseBook.Action.ERASE, i))
+        assertEquals(Command.Erase, b.match("Scoot it left."))
+        val again = PhraseBook.parse(b.serialize())
+        assertEquals(b.entries, again.entries)
+        again.remove(again.entries.indexOfFirst { it.phrase == "Scoot it left" })
+        assertEquals(null, again.match("scoot it left"))
+    }
+
+    @Test fun rejectsEmptyAndDuplicates() {
+        val b = PhraseBook()
+        assertTrue(b.put("   ", PhraseBook.Action.UNDO) != null)
+        assertTrue(b.put("move LEFT", PhraseBook.Action.UNDO) != null) // same as the default "Move left"
+        assertTrue(b.put("x".repeat(PhraseBook.MAX_LEN + 1), PhraseBook.Action.UNDO) != null)
+    }
+
+    @Test fun brokenSavedLinesAreSkipped() {
+        val b = PhraseBook.parse("NOT_AN_ACTION\tfoo\nUNDO\tgo back\nbroken line\n")
+        assertEquals(listOf(PhraseBook.Entry("go back", PhraseBook.Action.UNDO)), b.entries)
+        assertEquals(PhraseBook.defaults(), PhraseBook.parse(null).entries)
+    }
+
+    @Test fun everyActionMapsToARealCommand() {
+        for (a in PhraseBook.Action.values()) assertTrue(a.name, a.toCommand() !is Command.Unsupported && a.toCommand() != Command.Empty)
+    }
+}
+
+class LookMatchTest {
+    private fun noisy(w: Int, h: Int, base: Int, spread: Int, seed: Int): Pixels {
+        val r = java.util.Random(seed.toLong())
+        return Pixels(w, h, IntArray(w * h) {
+            val v = (base + r.nextInt(spread * 2 + 1) - spread).coerceIn(0, 255)
+            Pixels.argb(255, v, (v * 0.9).toInt(), (v * 0.7).toInt())
+        })
+    }
+    private fun meanLuma(p: Pixels): Double = p.data.map { c -> 0.299 * ((c shr 16) and 255) + 0.587 * ((c shr 8) and 255) + 0.114 * (c and 255) }.average()
+
+    @Test fun fullStrengthMovesBrightnessToReference() {
+        val src = noisy(64, 48, 60, 20, 1); val ref = noisy(40, 40, 190, 20, 2)
+        for (mode in LookMatch.Mode.values()) {
+            val out = LookMatch.apply(src, ref, mode, 1f)
+            assertEquals(mode.name, meanLuma(ref), meanLuma(out), 6.0)
+        }
+    }
+
+    @Test fun zeroStrengthChangesNothing() {
+        val src = noisy(32, 32, 100, 30, 3)
+        assertArrayEquals(src.data, LookMatch.apply(src, noisy(32, 32, 200, 10, 4), LookMatch.Mode.VIBE, 0f).data)
+    }
+
+    @Test fun onlyInsideMask() {
+        val src = noisy(20, 10, 80, 10, 5)
+        val m = Mask(20, 10).also { for (y in 0 until 10) for (x in 0 until 10) it[y * 20 + x] = 255 }
+        val out = LookMatch.apply(src, noisy(20, 20, 220, 10, 6), LookMatch.Mode.LOOK, 1f, m)
+        assertEquals(src[15, 5], out[15, 5])
+        assertTrue(meanLuma(Pixels(1, 1, intArrayOf(out[3, 3]))) > 150)
+    }
+
+    @Test fun bigImageUsesSampledStats() {
+        val src = noisy(1200, 700, 70, 25, 7)
+        val ref = noisy(300, 300, 170, 25, 8)
+        val out = LookMatch.apply(src, ref, LookMatch.Mode.LOOK, 1f)
+        assertEquals(1200, out.width)
+        assertEquals(meanLuma(ref), meanLuma(out), 8.0)
+    }
+}

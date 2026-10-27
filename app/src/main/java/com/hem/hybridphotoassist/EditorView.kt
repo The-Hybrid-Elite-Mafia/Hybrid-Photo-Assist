@@ -108,8 +108,8 @@ class EditorView @JvmOverloads constructor(
         rebuildOverlay()
     }
 
-    fun startCutout(bmp: Bitmap, x: Int, y: Int) {
-        cutout = bmp; cutX = x.toFloat(); cutY = y.toFloat(); cutScale = 1f
+    fun startCutout(bmp: Bitmap, x: Int, y: Int, scale: Float = 1f) {
+        cutout = bmp; cutX = x.toFloat(); cutY = y.toFloat(); cutScale = scale
         invalidate()
     }
 

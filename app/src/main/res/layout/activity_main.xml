@@ -165,6 +165,29 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/refRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRefBack"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:text="Back to my photo" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRefCopy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy into my photo" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/promptRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -192,6 +215,15 @@
             android:textColor="@color/hem_text"
             android:textColorHint="@color/hem_dim"
             android:textSize="15sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnPhrases"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Edit my phrases"
+            android:minWidth="0dp"
+            android:text="Edit" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPromptHelp"
@@ -273,7 +305,14 @@
                 android:id="@+id/toolBackground"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
                 android:text="Background" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolRefs"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reference" />
         </LinearLayout>
     </HorizontalScrollView>
 </LinearLayout>
